@@ -66,7 +66,7 @@ Sources used:
 Legend: ✅ Done · ⚠️ Stub (route exists, returns empty/null) · ❌ TODO
 
 ### Runtime Contract
-- ✅ Binds to `127.0.0.1:11470`, increments up to `11474` on conflict
+- ✅ Binds to `127.0.0.1:11470`, selecting a random available port on conflict
 - ✅ Prints `EngineFS server started at http://127.0.0.1:<port>` on stdout
 - ✅ CORS — all origins, `GET/POST/HEAD/OPTIONS`, `max-age=1728000`
 - ✅ Reads/writes Stremio `server-settings.json`
@@ -192,7 +192,7 @@ Legend: ✅ Done · ⚠️ Stub (route exists, returns empty/null) · ❌ TODO
 ## Runtime Contract
 
 - Default HTTP listen address is `127.0.0.1:11470`.
-- If port `11470` is unavailable, the old server increments up to `11474`.
+- If the preferred port is unavailable, the server asks the OS for a random available port.
 - Desktop shell expects stdout containing `EngineFS server started at http://127.0.0.1:<port>`.
 - Optional HTTPS endpoint listens on `12470` and is advertised by `/get-https`.
 - Request bodies are JSON and URL-encoded with an old 3 MB JSON limit.

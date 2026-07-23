@@ -571,7 +571,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let listener = bind_http_listener(http_start_port(), 5).await?;
+    let listener = bind_http_listener(http_start_port()).await?;
     let addr = listener.local_addr()?;
     let base_host = server_base_host(multi_user);
     let base_url = format!("http://{}:{}", base_host, addr.port());
@@ -702,18 +702,30 @@ fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn bind_http_listener(start_port: u16, attempts: u16) -> anyhow::Result<TcpListener> {
-    for port in start_port..start_port + attempts {
-        match TcpListener::bind((IpAddr::V4(Ipv4Addr::UNSPECIFIED), port)).await {
-            Ok(listener) => return Ok(listener),
-            Err(err) => warn!(port, error = %err, "HTTP port unavailable"),
+async fn bind_http_listener(preferred_port: u16) -> anyhow::Result<TcpListener> {
+    let bind_ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+    match TcpListener::bind((bind_ip, preferred_port)).await {
+        Ok(listener) => Ok(listener),
+        Err(preferred_error) => {
+            warn!(
+                port = preferred_port,
+                error = %preferred_error,
+                "preferred HTTP port unavailable; selecting a random available port"
+            );
+            let listener = TcpListener::bind((bind_ip, 0)).await.with_context(|| {
+                format!(
+                    "binding a random HTTP port after port {preferred_port} failed: \
+                         {preferred_error}"
+                )
+            })?;
+            let selected_port = listener.local_addr()?.port();
+            info!(
+                preferred_port,
+                selected_port, "using random available HTTP port"
+            );
+            Ok(listener)
         }
     }
-    anyhow::bail!(
-        "no free HTTP port in {}..{}",
-        start_port,
-        start_port + attempts
-    );
 }
 
 fn server_app_path() -> PathBuf {
@@ -980,6 +992,16 @@ mod tests {
     #[test]
     fn single_user_server_uses_loopback() {
         assert_eq!(server_base_host(false), "127.0.0.1");
+    }
+
+    #[tokio::test]
+    async fn listener_uses_random_port_when_preferred_port_is_occupied() {
+        let occupied = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0)).await.unwrap();
+        let occupied_port = occupied.local_addr().unwrap().port();
+
+        let listener = bind_http_listener(occupied_port).await.unwrap();
+
+        assert_ne!(listener.local_addr().unwrap().port(), occupied_port);
     }
 
     #[test]
