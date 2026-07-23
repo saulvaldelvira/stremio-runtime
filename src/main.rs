@@ -30,7 +30,7 @@ use chrono::{SecondsFormat, Utc};
 use futures_util::{Stream, StreamExt, TryStreamExt};
 use librqbit::{
     AddTorrent, AddTorrentOptions, ConnectionOptions, ListenerOptions, Magnet,
-    PeerConnectionOptions, Session, SessionOptions, api::TorrentIdOrHash,
+    PeerConnectionOptions, Session, SessionOptions, api::TorrentIdOrHash, dht::PersistentDhtConfig,
 };
 use librqbit_core::torrent_metainfo::torrent_from_bytes;
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
@@ -525,6 +525,12 @@ async fn main() -> anyhow::Result<()> {
             // Keep librqbit's blocking disk/checksum work below the runtime's
             // worker count so lightweight endpoints can still respond.
             runtime_worker_threads: Some(4),
+            // Keep the persisted routing table, but never reuse its UDP port. Windows can reserve
+            // a previously valid dynamic port between launches, which otherwise aborts startup.
+            dht_config: Some(PersistentDhtConfig {
+                port: Some(0),
+                ..Default::default()
+            }),
             trackers,
             ..Default::default()
         },
